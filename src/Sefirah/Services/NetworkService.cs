@@ -85,6 +85,8 @@ public class NetworkService(
     {
         if (device.IsConnected)
         {
+            device.LastActivityUtc = DateTime.UtcNow;
+
             await SendDeviceInfo(device);
 
             if (device.DeviceSettings.AdbAutoConnect)
@@ -314,6 +316,18 @@ public class NetworkService(
         var pairedDevice = PairedDevices.FirstOrDefault(d => (d.Client?.Id == guid || d.Session?.Id == guid));
         if (pairedDevice is not null)
         {
+            pairedDevice.LastActivityUtc = DateTime.UtcNow;
+
+            if (message is Ping)
+            {
+                pairedDevice.SendMessage(new Pong());
+                return;
+            }
+            if (message is Pong)
+            {
+                return;
+            }
+
             messageHandler.Value.HandleMessageAsync(pairedDevice, message);
             return;
         }

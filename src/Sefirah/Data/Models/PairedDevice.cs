@@ -130,6 +130,13 @@ public partial class PairedDevice : BaseRemoteDevice
     public bool IsConnecting => ConnectionStatus.IsConnecting;
     public bool IsConnectedOrConnecting => ConnectionStatus.IsConnectedOrConnecting;
 
+    /// <summary>
+    /// UTC timestamp of the last message (including heartbeats) received from this device.
+    /// Used by <see cref="Services.ConnectionWatchdogService"/> to detect connections that
+    /// look "Connected" but have gone silent.
+    /// </summary>
+    public DateTime LastActivityUtc { get; set; }
+
     private BatteryState? batteryStatus;
     public BatteryState? BatteryStatus
     {

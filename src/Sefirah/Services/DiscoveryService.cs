@@ -18,12 +18,14 @@ public class DiscoveryService(
     ISessionManager sessionManager
     ) : IDiscoveryService, IUdpClientProvider
 {
-    private MulticastClient? udpClient; 
+    private MulticastClient? udpClient;
     private const string DEFAULT_BROADCAST = "255.255.255.255";
     private LocalDeviceEntity? localDevice;
     private readonly int port = 5149;
     private List<IPEndPoint> broadcastEndpoints = [];
     private const int DiscoveryPort = 5149;
+    private static readonly TimeSpan RebroadcastInterval = TimeSpan.FromSeconds(25);
+    private CancellationTokenSource? rebroadcastCts;
 
     public UdpBroadcast? BroadcastMessage { get; private set; }
 
@@ -79,6 +81,7 @@ public class DiscoveryService(
                 udpClient.Socket.EnableBroadcast = true;
                 logger.Info($"UDP Client connected successfully {port}");
                 BroadcastDeviceInfoAsync(BroadcastMessage);
+                StartPeriodicRebroadcast();
             }
             else
             {
@@ -94,6 +97,42 @@ public class DiscoveryService(
     private void OnDiscoveredMdnsService(object? sender, DiscoveredMdnsServiceArgs e)
     {
         sessionManager.Connect(e.DeviceId, e.Address, e.Port);
+    }
+
+    /// <summary>
+    /// Re-announces this device on the network right away. Called by
+    /// <see cref="ConnectionWatchdogService"/> after a network change, since the phone
+    /// may have missed the one-time broadcast sent when discovery first started.
+    /// </summary>
+    public void BroadcastNow()
+    {
+        if (BroadcastMessage is not null)
+        {
+            BroadcastDeviceInfoAsync(BroadcastMessage);
+        }
+    }
+
+    private void StartPeriodicRebroadcast()
+    {
+        rebroadcastCts?.Cancel();
+        rebroadcastCts = new CancellationTokenSource();
+        var token = rebroadcastCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var timer = new PeriodicTimer(RebroadcastInterval);
+                while (await timer.WaitForNextTickAsync(token))
+                {
+                    BroadcastNow();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // expected on stop
+            }
+        }, token);
     }
 
     private async void BroadcastDeviceInfoAsync(UdpBroadcast udpBroadcast)
@@ -137,6 +176,10 @@ public class DiscoveryService(
     {
         try
         {
+            rebroadcastCts?.Cancel();
+            rebroadcastCts?.Dispose();
+            rebroadcastCts = null;
+
             mdnsService.DiscoveredMdnsService -= OnDiscoveredMdnsService;
             mdnsService.UnAdvertiseService();
             udpClient?.Dispose();

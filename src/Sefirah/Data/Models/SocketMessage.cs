@@ -29,6 +29,8 @@ namespace Sefirah.Data.Models;
 [JsonDerivedType(typeof(PairMessage), nameof(PairMessage))]
 [JsonDerivedType(typeof(BluetoothPairingRequest), nameof(BluetoothPairingRequest))]
 [JsonDerivedType(typeof(BluetoothPairingResult), nameof(BluetoothPairingResult))]
+[JsonDerivedType(typeof(Ping), nameof(Ping))]
+[JsonDerivedType(typeof(Pong), nameof(Pong))]
 [JsonDerivedType(typeof(PlaySound), nameof(PlaySound))]
 [JsonDerivedType(typeof(PlaybackInfo), nameof(PlaybackInfo))]
 [JsonDerivedType(typeof(RequestApplicationList), nameof(RequestApplicationList))]
@@ -68,6 +70,16 @@ public class PairMessage : SocketMessage
 }
 
 public class BluetoothPairingRequest : SocketMessage;
+
+/// <summary>
+/// Application-level heartbeat. Sent periodically to a connected peer to detect
+/// dead sockets that never report a TCP-level error (e.g. a Wi-Fi network that
+/// silently vanished, or a router that dropped the NAT mapping while idle).
+/// </summary>
+public class Ping : SocketMessage;
+
+/// <summary>Reply to <see cref="Ping"/>, confirming the connection is still alive in both directions.</summary>
+public class Pong : SocketMessage;
 
 public class BluetoothPairingResult : SocketMessage
 {

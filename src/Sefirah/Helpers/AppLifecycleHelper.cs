@@ -33,6 +33,7 @@ public static class AppLifecycleHelper
     {
         var discoveryService = Ioc.Default.GetRequiredService<IDiscoveryService>();
         var networkService = Ioc.Default.GetRequiredService<INetworkService>();
+        var connectionWatchdogService = Ioc.Default.GetRequiredService<IConnectionWatchdogService>();
         var deviceManager = Ioc.Default.GetRequiredService<IDeviceManager>();
         var adbService = Ioc.Default.GetRequiredService<IAdbService>();
         var updateService = Ioc.Default.GetRequiredService<IUpdateService>();
@@ -48,6 +49,7 @@ public static class AppLifecycleHelper
 
         await networkService.StartServerAsync();
         await discoveryService.StartDiscoveryAsync();
+        connectionWatchdogService.Start();
 
         _ = Task.WhenAll(
             adbService.StartAsync(),
@@ -123,6 +125,7 @@ public static class AppLifecycleHelper
                 .AddSingleton<IMdnsService, MdnsService>()
                 .AddSingleton<IDiscoveryService, DiscoveryService>()
                 .AddSingleton<INetworkService, NetworkService>()
+                .AddSingleton<IConnectionWatchdogService, ConnectionWatchdogService>()
 
                 .AddFeature<INotificationFeature, NotificationFeature>()
                 .AddFeature<IBatteryAlertFeature, BatteryAlertFeature>()

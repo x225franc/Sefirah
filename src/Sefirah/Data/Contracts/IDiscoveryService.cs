@@ -13,6 +13,12 @@ public interface IDiscoveryService
     void StopDiscovery();
 
     /// <summary>
+    /// Re-announces this device on the network immediately, instead of waiting for the
+    /// periodic rebroadcast.
+    /// </summary>
+    void BroadcastNow();
+
+    /// <summary>
     /// Gets the current UDP broadcast data.
     /// </summary>
     UdpBroadcast? BroadcastMessage { get; }
