@@ -36,7 +36,6 @@ public static class AppLifecycleHelper
         var connectionWatchdogService = Ioc.Default.GetRequiredService<IConnectionWatchdogService>();
         var deviceManager = Ioc.Default.GetRequiredService<IDeviceManager>();
         var adbService = Ioc.Default.GetRequiredService<IAdbService>();
-        var updateService = Ioc.Default.GetRequiredService<IUpdateService>();
         var phoneLineService = Ioc.Default.GetRequiredService<IPhoneLineService>();
 #if WINDOWS
         var notificationHandler = Ioc.Default.GetRequiredService<IPlatformNotificationHandler>();
@@ -53,7 +52,6 @@ public static class AppLifecycleHelper
 
         _ = Task.WhenAll(
             adbService.StartAsync(),
-            updateService.CheckForUpdatesAsync(),
             phoneLineService.InitializeAsync(),
             Task.Run(LocalAppPaths.PruneTemporaryFolder)
         );
