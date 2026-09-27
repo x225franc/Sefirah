@@ -64,7 +64,17 @@ public class DiscoveryService(
             broadcastEndpoints.Add(new IPEndPoint(IPAddress.Parse(DEFAULT_BROADCAST), DiscoveryPort));
 
             var addresses = deviceManager.GetRemoteDeviceAddresses();
-            broadcastEndpoints.AddRange(addresses.Select(address => new IPEndPoint(IPAddress.Parse(address), DiscoveryPort)));
+            broadcastEndpoints.AddRange(addresses
+                .Select(address => IPAddress.TryParse(address, out var parsed) ? new IPEndPoint(parsed, DiscoveryPort) : null)
+                .Where(endpoint => endpoint is not null)!);
+
+            // GetRemoteDeviceAddresses() returns every address ever seen for every paired device,
+            // with no cap or de-dup - months of switching networks/hotspots can pile up dozens of
+            // entries, several of which end up equal to each other or to the subnet/gateway
+            // broadcasts above. Sending the same announcement to the same destination dozens of
+            // times per broadcast made the receiving side see a burst of near-simultaneous "new
+            // connection" triggers instead of one, which is what was causing the reconnect storms.
+            broadcastEndpoints = [.. broadcastEndpoints.Distinct()];
 
             logger.Info($"Active broadcast endpoints: {string.Join(", ", broadcastEndpoints)}");
 

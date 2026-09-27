@@ -35,17 +35,24 @@ public partial class PairedDevice : BaseRemoteDevice
     {
         var enabledAddresses = Addresses
             .Where(ip => ip.IsEnabled)
-            .Select(ip => ip.Address);
-        
-        // If no addresses are enabled, return all addresses
-        if (!enabledAddresses.Any())
+            .Select(ip => ip.Address)
+            .ToList();
+
+        // If no addresses are enabled, fall back to all known addresses
+        if (enabledAddresses.Count == 0)
         {
-            return Addresses
-                .Select(ip => ip.Address)
-                .ToList();
+            enabledAddresses = Addresses.Select(ip => ip.Address).ToList();
         }
-        
-        return enabledAddresses.ToList();
+
+        // Try the address that last worked first, so a reconnect doesn't waste its connect
+        // timeout on a stale address (e.g. a network the device isn't on anymore) before
+        // reaching the one that's actually current.
+        if (!string.IsNullOrEmpty(Address) && enabledAddresses.Remove(Address))
+        {
+            enabledAddresses.Insert(0, Address);
+        }
+
+        return enabledAddresses;
     }
 
     /// <summary>
