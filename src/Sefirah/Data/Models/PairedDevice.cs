@@ -96,6 +96,7 @@ public partial class PairedDevice : BaseRemoteDevice
             if (SetProperty(ref connectionStatus, value))
             {
                 OnPropertyChanged(nameof(ConnectionStatusText));
+                OnPropertyChanged(nameof(ConnectionActionText));
                 OnPropertyChanged(nameof(IsConnected));
                 OnPropertyChanged(nameof(IsConnecting));
                 OnPropertyChanged(nameof(IsForcedDisconnect));
@@ -131,6 +132,8 @@ public partial class PairedDevice : BaseRemoteDevice
             };
         }
     }
+    public string ConnectionActionText => (IsConnected ? "Disconnect" : IsConnecting ? "Cancel" : "Connect").GetLocalizedResource();
+
     public bool IsDisconnected => ConnectionStatus.IsDisconnected;
     public bool IsConnected => ConnectionStatus.IsConnected;
     public bool IsForcedDisconnect => ConnectionStatus.IsForcedDisconnect;

@@ -1,4 +1,5 @@
 using Microsoft.UI.Dispatching;
+using System.Collections.Specialized;
 using Sefirah.Data.AppDatabase.Repository;
 using Sefirah.Data.Models;
 
@@ -21,11 +22,49 @@ public partial class DevicesViewModel : ObservableObject
     public ObservableCollection<PairedDevice> PairedDevices => DeviceManager.PairedDevices;
     public ObservableCollection<DiscoveredDevice> DiscoveredDevices => DeviceManager.DiscoveredDevices;
 
+    public string ConnectionSummary => string.Format(
+        "MultiDeviceConnectionSummary".GetLocalizedResource(),
+        PairedDevices.Count(d => d.IsConnected), PairedDevices.Count);
+
     public DevicesViewModel()
     {
         Dispatcher = DispatcherQueue.GetForCurrentThread();
         DeviceManager.ActiveDeviceChanged += OnActiveDeviceChanged;
         UpdateActiveDeviceState(DeviceManager.ActiveDevice);
+        foreach (var device in PairedDevices) device.PropertyChanged += OnDevicePropertyChanged;
+        PairedDevices.CollectionChanged += OnPairedDevicesChanged;
+    }
+
+    private void OnPairedDevicesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+            foreach (PairedDevice device in e.OldItems) device.PropertyChanged -= OnDevicePropertyChanged;
+        if (e.NewItems is not null)
+            foreach (PairedDevice device in e.NewItems) device.PropertyChanged += OnDevicePropertyChanged;
+        UpdateActiveDeviceState(DeviceManager.ActiveDevice);
+        OnPropertyChanged(nameof(ConnectionSummary));
+    }
+
+    private void OnDevicePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PairedDevice.IsConnected))
+            OnPropertyChanged(nameof(ConnectionSummary));
+    }
+
+    [RelayCommand]
+    public void ConnectAllDevices()
+    {
+        // Leave healthy sessions and in-progress attempts alone, regardless of the viewed device.
+        foreach (var device in PairedDevices.Where(d => !d.IsConnectedOrConnecting).ToList())
+            SessionManager.Connect(device);
+    }
+
+    [RelayCommand]
+    public void ToggleConnection(PairedDevice? device)
+    {
+        if (device is null) return;
+        if (device.IsConnected) SessionManager.DisconnectDevice(device, true);
+        else SessionManager.Connect(device); // Also cancels this device's pending attempt.
     }
 
     private void OnActiveDeviceChanged(object? sender, PairedDevice? activeDevice)

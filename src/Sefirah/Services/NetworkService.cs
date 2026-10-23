@@ -426,7 +426,7 @@ public class NetworkService(
         {
             pairedDevice.TryAddAddress(address);
             pairedDevice.ConnectionStatus = new Connected();
-            deviceManager.ActiveDevice = pairedDevice;
+            deviceManager.ActiveDevice ??= pairedDevice;
         });
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -926,7 +926,7 @@ public class NetworkService(
         {
             pairedDevice.TryAddAddress(address);
             pairedDevice.ConnectionStatus = new Connected();
-            deviceManager.ActiveDevice = pairedDevice;
+            deviceManager.ActiveDevice ??= pairedDevice;
         });
 
         cancellationToken.ThrowIfCancellationRequested();

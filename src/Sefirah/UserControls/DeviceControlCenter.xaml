@@ -67,9 +67,50 @@
         <Grid RowSpacing="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" ColumnSpacing="18">
+        <StackPanel Grid.Row="0" Spacing="8">
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{x:Bind Connections.ConnectionSummary, Mode=OneWay}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="{helpers:ResourceString Name=ConnectAllDevices}" Command="{x:Bind Connections.ConnectAllDevicesCommand}" FontSize="12" />
+            </Grid>
+            <TextBlock Text="{helpers:ResourceString Name=MultiDeviceConnectionDescription}" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <ScrollViewer MaxHeight="160" HorizontalScrollBarVisibility="Disabled">
+                <ItemsRepeater ItemsSource="{x:Bind ViewModel.PairedDevices, Mode=OneWay}">
+                    <ItemsRepeater.Layout><StackLayout Spacing="4" /></ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="models:PairedDevice">
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="6" Background="Transparent" BorderThickness="0"
+                                    Tag="{x:Bind}" Click="ViewDeviceDetails_Click" ToolTipService.ToolTip="{helpers:ResourceString Name=ViewDeviceDetails}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="{x:Bind DeviceIcon, Mode=OneWay}" FontSize="20" />
+                                        <StackPanel>
+                                            <TextBlock Text="{x:Bind Name, Mode=OneWay}" MaxWidth="155" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{x:Bind ConnectionStatusText, Mode=OneWay}" FontSize="12" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="1" Tag="{x:Bind}" Click="ToggleDeviceConnection_Click"
+                                    Content="{x:Bind ConnectionActionText, Mode=OneWay}" FontSize="12" VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </ScrollViewer>
+            <TextBlock Text="{helpers:ResourceString Name=DisplayedDevice}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnSpacing="18">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />

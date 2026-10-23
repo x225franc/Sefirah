@@ -1088,4 +1088,10 @@ input text %pwd%</value>
   <data name="Dialer" xml:space="preserve">
     <value>Dialer</value>
   </data>
+  <data name="MultiDeviceConnectionSummary" xml:space="preserve"><value>{0} / {1} devices connected</value></data>
+  <data name="MultiDeviceConnectionDescription" xml:space="preserve"><value>All connected devices share the clipboard according to their settings. Viewing one device keeps the others connected.</value></data>
+  <data name="ConnectAllDevices" xml:space="preserve"><value>Connect all</value></data>
+  <data name="ViewDeviceDetails" xml:space="preserve"><value>View details</value></data>
+  <data name="DeviceDetailsShown" xml:space="preserve"><value>Details shown</value></data>
+  <data name="DisplayedDevice" xml:space="preserve"><value>Device details</value></data>
 </root>

@@ -21,6 +21,8 @@ public sealed partial class DeviceControlCenter : UserControl
             typeof(DeviceControlCenter),
             new PropertyMetadata(FlyoutPlacementMode.Bottom));
 
+    public Sefirah.ViewModels.Settings.DevicesViewModel Connections { get; } = Ioc.Default.GetRequiredService<Sefirah.ViewModels.Settings.DevicesViewModel>();
+
     public MainPageViewModel ViewModel { get; } = Ioc.Default.GetRequiredService<MainPageViewModel>();
 
     public FlyoutPlacementMode PaneFlyoutPlacement
@@ -66,6 +68,16 @@ public sealed partial class DeviceControlCenter : UserControl
 
     private void PhoneFrameScrollTeachingTip_Closed(object? _, TeachingTipClosedEventArgs args)
         => IsPhoneFrameScrollTeachingTipShown = true;
+
+    private void ViewDeviceDetails_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: PairedDevice device }) Connections.SelectDevice(device);
+    }
+
+    private void ToggleDeviceConnection_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: PairedDevice device }) Connections.ToggleConnection(device);
+    }
 
     private async void SendFilesAction_Click(object sender, RoutedEventArgs e)
     {

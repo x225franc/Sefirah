@@ -1,0 +1,40 @@
+using Sefirah.Data.AppDatabase.Repository;
+using Sefirah.ViewModels.Settings;
+
+static void Check(bool result, string reason) { if (!result) throw new Exception(reason); }
+var devices = new TestDevices();
+var sessions = new TestSessions();
+Ioc.Default.Services[typeof(IDeviceManager)] = devices;
+Ioc.Default.Services[typeof(ISessionManager)] = sessions;
+Ioc.Default.Services[typeof(ISftpFeature)] = new TestSftp();
+foreach (var type in new[] { typeof(RemoteAppRepository), typeof(ContactRepository), typeof(SmsRepository), typeof(CallLogRepository), typeof(NotificationRepository) })
+    Ioc.Default.Services[type] = Activator.CreateInstance(type)!;
+var phone = new PairedDevice("phone") { IsConnected = true };
+var pc = new PairedDevice("pc") { IsConnected = true };
+var offline = new PairedDevice("offline");
+var pending = new PairedDevice("pending") { IsConnecting = true };
+foreach (var device in new[] { phone, pc, offline, pending }) devices.PairedDevices.Add(device);
+devices.ActiveDevice = phone;
+var viewModel = new DevicesViewModel();
+viewModel.SelectDevice(pc);
+Check(devices.ActiveDevice == pc && pc.IsActiveDevice && !phone.IsActiveDevice, "Only the displayed details change");
+Check(phone.IsConnected && pc.IsConnected && sessions.Disconnected.Count == 0 && sessions.Connected.Count == 0,
+    "Viewing a PC must keep the phone connected and must not touch transport");
+viewModel.SelectDevice(phone);
+Check(pc.IsConnected && sessions.Disconnected.Count == 0, "Viewing the phone must keep the PC connected");
+viewModel.ConnectAllDevices();
+Check(sessions.Connected.SequenceEqual(new[] { offline }), "Connect all retries offline devices without cancelling existing connections or attempts");
+Check(devices.ActiveDevice == phone, "Connect all preserves the displayed device");
+Check(viewModel.ConnectionSummary == "2 / 4 devices connected", "All concurrent connections counted");
+var notifications = 0;
+viewModel.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(viewModel.ConnectionSummary)) notifications++; };
+offline.IsConnected = true;
+Check(viewModel.ConnectionSummary == "3 / 4 devices connected" && notifications > 0, "Summary updates on connection changes");
+var added = new PairedDevice("new phone");
+devices.PairedDevices.Add(added);
+added.IsConnected = true;
+Check(viewModel.ConnectionSummary == "4 / 5 devices connected", "Newly paired devices included");
+viewModel.ToggleConnection(pc);
+Check(sessions.Disconnected.SequenceEqual(new[] { (pc, true) }), "Explicit disconnect targets only its own device");
+Check(phone.IsConnected && devices.ActiveDevice == phone, "Disconnecting another peer preserves the displayed phone");
+Console.WriteLine("PASS: production device view model keeps PC and phone connected across selection, connects all independently, preserves pending attempts and updates all device counts.");
