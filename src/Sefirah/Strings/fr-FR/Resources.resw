@@ -1093,4 +1093,7 @@ input text %pwd%</value>
   <data name="ViewDeviceDetails" xml:space="preserve"><value>Voir les détails</value></data>
   <data name="DeviceDetailsShown" xml:space="preserve"><value>Détails affichés</value></data>
   <data name="DisplayedDevice" xml:space="preserve"><value>Détails de l’appareil</value></data>
+  <data name="DeviceConnecting" xml:space="preserve"><value>Connexion…</value></data>
+  <data name="DeviceOffline" xml:space="preserve"><value>Hors ligne</value></data>
+  <data name="DevicesOverviewHint" xml:space="preserve"><value>Reconnexion automatique. Le presse-papiers reste synchronisé avec les appareils connectés.</value></data>
 </root>

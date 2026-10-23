@@ -13,7 +13,7 @@ public partial class DeviceManager(
     DeviceRepository repository,
     ContactRepository contactRepository) : ObservableObject, IDeviceManager
 {
-    public ObservableCollection<PairedDevice> PairedDevices { get; set; } = [];
+    public ObservableCollection<PairedDevice> PairedDevices { get; } = [];
     public ObservableCollection<DiscoveredDevice> DiscoveredDevices { get; } = [];
 
     [ObservableProperty]
@@ -137,8 +137,13 @@ public partial class DeviceManager(
     public async Task Initialize()
     {
         var pairedDevicesList = await repository.GetPairedDevices();
-        PairedDevices = pairedDevicesList.ToObservableCollection();
-        ActiveDevice = PairedDevices.FirstOrDefault();
+        // Keep the collection instance: views may subscribe before database loading completes.
+        await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+        {
+            PairedDevices.Clear();
+            foreach (var device in pairedDevicesList) PairedDevices.Add(device);
+            ActiveDevice = PairedDevices.FirstOrDefault();
+        });
         await contactRepository.LoadContacts();
     }
 

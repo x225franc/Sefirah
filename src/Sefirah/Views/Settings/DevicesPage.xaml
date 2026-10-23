@@ -3,36 +3,21 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:converters="using:Sefirah.Converters"
-    xmlns:wctconverters="using:CommunityToolkit.WinUI.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:helpers="using:Sefirah.Helpers"
     xmlns:items="using:Sefirah.Data.Items"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:Sefirah.Data.Models"
-    xmlns:vm="using:Sefirah.ViewModels.Settings"
-    xmlns:wuc="using:CommunityToolkit.WinUI.Controls"
     x:Name="DevicePage"
     mc:Ignorable="d">
 
     <Page.Resources>
+        <converters:ConnectionStatusBrushConverter x:Key="ConnectionStatusBrushConverter" />
         <x:Double x:Key="BreadcrumbBarChevronFontSize">17</x:Double>
-        <wctconverters:BoolToObjectConverter x:Key="BoolToConnectionButtonTextConverter"
-            FalseValue="{helpers:ResourceString Name=Disconnected/Text}"
-            TrueValue="{helpers:ResourceString Name=Connected/Text}" />
-        <wctconverters:BoolToObjectConverter x:Key="BoolToSelectButtonTextConverter"
-            FalseValue="{helpers:ResourceString Name=ViewDeviceDetails}"
-            TrueValue="{helpers:ResourceString Name=DeviceDetailsShown}" />
-        <wctconverters:BoolNegationConverter x:Key="BoolNegationConverter" />
-
         <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter" />
         <converters:CountToVisibilityConverter x:Key="InverseCountToVisibilityConverter" Inverse="True" />
-        <wctconverters:EmptyObjectToObjectConverter x:Key="EmptyObjectToOpacityConverter" EmptyValue="1.0" NotEmptyValue="0.0" />
-        <converters:EmptyObjectToVisibilityConverter x:Key="EmptyObjectToVisibilityConverter" />
     </Page.Resources>
 
-    <Page.DataContext>
-        <vm:DevicesViewModel x:Name="ViewModel" />
-    </Page.DataContext>
 
     <ScrollViewer Padding="0,0,40,0">
         <StackPanel Spacing="4">
@@ -68,58 +53,55 @@
                 </Button>
             </Grid>
 
-            <StackPanel Margin="0,0,0,12" Spacing="8">
-                <TextBlock Text="{helpers:ResourceString Name=MultiDeviceConnectionDescription}" TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    <Button Content="{helpers:ResourceString Name=ConnectAllDevices}" Command="{x:Bind ViewModel.ConnectAllDevicesCommand}" />
-                    <TextBlock Text="{x:Bind ViewModel.ConnectionSummary, Mode=OneWay}" VerticalAlignment="Center" />
+            <Grid Margin="0,4,0,20" ColumnSpacing="16">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel Spacing="5">
+                    <TextBlock Text="{x:Bind ViewModel.ConnectionSummary, Mode=OneWay}" FontWeight="SemiBold" />
+                    <TextBlock Text="{helpers:ResourceString Name=DevicesOverviewHint}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                 </StackPanel>
-            </StackPanel>
+                <Button Grid.Column="1" Content="{helpers:ResourceString Name=ConnectAllDevices}" Command="{x:Bind ViewModel.ConnectAllDevicesCommand}" VerticalAlignment="Center" />
+            </Grid>
 
             <ItemsRepeater ItemsSource="{x:Bind ViewModel.PairedDevices, Mode=OneWay}">
-                <ItemsRepeater.Layout>
-                    <StackLayout Orientation="Vertical" Spacing="8" />
-                </ItemsRepeater.Layout>
+                <ItemsRepeater.Layout><StackLayout Spacing="10" /></ItemsRepeater.Layout>
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="models:PairedDevice">
-                        <wuc:SettingsCard>
-                            <wuc:SettingsCard.Header>
-                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
-                                    <FontIcon FontSize="36" Glyph="{x:Bind DeviceIcon, Mode=OneWay}" />
-                                    <StackPanel Margin="15,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{x:Bind Name, Mode=OneWay}" />
-                                        <TextBlock Text="{x:Bind DeviceDescription, Mode=OneWay}" FontSize="12" />
-                                        <TextBlock Text="{x:Bind ConnectionStatusText, Mode=OneWay}" />
-                                    </StackPanel>
+                        <Border Padding="20,18" CornerRadius="10" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                            <Grid ColumnSpacing="18">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="48" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="48" Height="48" CornerRadius="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                    <FontIcon FontSize="26" Glyph="{x:Bind DeviceIcon, Mode=OneWay}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="5">
+                                    <TextBlock Text="{x:Bind Name, Mode=OneWay}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{x:Bind DeviceDescription, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
                                 </StackPanel>
-                            </wuc:SettingsCard.Header>
-
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button
-                                    Content="{x:Bind ConnectionActionText, Mode=OneWay}"
-                                    Command="{Binding DataContext.ToggleConnectionCommand, ElementName=DevicePage}"
-                                    CommandParameter="{x:Bind}" />
-                                <Button
-                                    MinWidth="110"
-                                    Command="{Binding DataContext.SelectDeviceCommand, ElementName=DevicePage}"
-                                    CommandParameter="{x:Bind}"
-                                    IsEnabled="{x:Bind IsActiveDevice, Mode=OneWay, Converter={StaticResource BoolNegationConverter}}">
-                                    <TextBlock Text="{x:Bind IsActiveDevice, Mode=OneWay, Converter={StaticResource BoolToSelectButtonTextConverter}}" />
+                                <Border Grid.Column="2" VerticalAlignment="Center" CornerRadius="12" Padding="10,5" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{x:Bind ConnectionStatus, Mode=OneWay, Converter={StaticResource ConnectionStatusBrushConverter}}" />
+                                        <TextBlock Text="{x:Bind ConnectionStatusText, Mode=OneWay}" FontSize="12" />
+                                    </StackPanel>
+                                </Border>
+                                <Button Grid.Column="3" VerticalAlignment="Center" MinWidth="110" Content="{x:Bind ConnectionActionText, Mode=OneWay}"
+                                    Tag="{x:Bind}" Click="ToggleConnection_Click" />
+                                <Button Grid.Column="4" VerticalAlignment="Center" Background="Transparent" BorderThickness="0" Padding="8"
+                                    AutomationProperties.Name="{helpers:ResourceString Name=DeviceActions}">
+                                    <FontIcon Glyph="&#xE712;" FontSize="16" />
+                                    <Button.Flyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Text="{helpers:ResourceString Name=ViewDeviceDetails}" Tag="{x:Bind}" Click="ViewDetails_Click" />
+                                            <MenuFlyoutItem Text="{helpers:ResourceString Name=DeviceSettings}" Tag="{x:Bind}" Click="DeviceSettings_Click" />
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem Text="{helpers:ResourceString Name=Remove}" Tag="{x:Bind}" Click="RemoveDevice_Click" />
+                                        </MenuFlyout>
+                                    </Button.Flyout>
                                 </Button>
-                                <Button
-                                    VerticalAlignment="Stretch"
-                                    Command="{Binding DataContext.OpenDeviceSettingsCommand, ElementName=DevicePage}"
-                                    CommandParameter="{x:Bind}">
-                                    <FontIcon FontSize="14" Glyph="&#xE713;" />
-                                </Button>
-                                <Button
-                                    VerticalAlignment="Stretch"
-                                    Command="{Binding DataContext.RemoveDeviceCommand, ElementName=DevicePage}"
-                                    CommandParameter="{x:Bind}">
-                                    <FontIcon FontSize="14" Glyph="&#xE74D;" />
-                                </Button>
-                            </StackPanel>
-                        </wuc:SettingsCard>
+                            </Grid>
+                        </Border>
                     </DataTemplate>
                 </ItemsRepeater.ItemTemplate>
             </ItemsRepeater>

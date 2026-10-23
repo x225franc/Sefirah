@@ -5,9 +5,12 @@ namespace Sefirah.Views.Settings;
 
 public sealed partial class DevicesPage : Page
 {
+    public Sefirah.ViewModels.Settings.DevicesViewModel ViewModel { get; } = Ioc.Default.GetRequiredService<Sefirah.ViewModels.Settings.DevicesViewModel>();
+
     public DevicesPage()
     {
         InitializeComponent();
+        DataContext = ViewModel;
         SetupBreadcrumb();
     }
 
@@ -33,6 +36,26 @@ public sealed partial class DevicesPage : Page
                 Frame.GoBack();
             }
         }
+    }
+
+    private void ToggleConnection_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Sefirah.Data.Models.PairedDevice device }) ViewModel.ToggleConnection(device);
+    }
+
+    private void ViewDetails_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Sefirah.Data.Models.PairedDevice device }) ViewModel.SelectDevice(device);
+    }
+
+    private void DeviceSettings_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Sefirah.Data.Models.PairedDevice device }) ViewModel.OpenDeviceSettings(device);
+    }
+
+    private async void RemoveDevice_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: Sefirah.Data.Models.PairedDevice device }) await ViewModel.RemoveDevice(device);
     }
 
     private void OpenDeviceDiscovery(object sender, RoutedEventArgs e)

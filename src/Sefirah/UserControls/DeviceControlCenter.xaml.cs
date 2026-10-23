@@ -59,7 +59,7 @@ public sealed partial class DeviceControlCenter : UserControl
 
     private void TryShowPhoneFrameScrollTeachingTip()
     {
-        if (IsPhoneFrameScrollTeachingTipShown) return;
+        if (IsPhoneFrameScrollTeachingTipShown || PhoneFrameGrid.ActualHeight == 0) return;
         if (ViewModel.PairedDevices.Count <= 1) return;
         if (PhoneFrameScrollTeachingTip.IsOpen) return;
 
@@ -76,7 +76,12 @@ public sealed partial class DeviceControlCenter : UserControl
 
     private void ToggleDeviceConnection_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: PairedDevice device }) Connections.ToggleConnection(device);
+        if (sender is FrameworkElement { Tag: PairedDevice device }) Connections.ToggleConnection(device);
+    }
+
+    private void OpenDeviceSettings_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: PairedDevice device }) Connections.OpenDeviceSettings(device);
     }
 
     private async void SendFilesAction_Click(object sender, RoutedEventArgs e)

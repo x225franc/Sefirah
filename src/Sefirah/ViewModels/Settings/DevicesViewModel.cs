@@ -22,6 +22,10 @@ public partial class DevicesViewModel : ObservableObject
     public ObservableCollection<PairedDevice> PairedDevices => DeviceManager.PairedDevices;
     public ObservableCollection<DiscoveredDevice> DiscoveredDevices => DeviceManager.DiscoveredDevices;
 
+    private readonly HashSet<PairedDevice> observedDevices = [];
+
+    public string CompactConnectionSummary => $"{PairedDevices.Count(d => d.IsConnected)} / {PairedDevices.Count}";
+
     public string ConnectionSummary => string.Format(
         "MultiDeviceConnectionSummary".GetLocalizedResource(),
         PairedDevices.Count(d => d.IsConnected), PairedDevices.Count);
@@ -31,24 +35,38 @@ public partial class DevicesViewModel : ObservableObject
         Dispatcher = DispatcherQueue.GetForCurrentThread();
         DeviceManager.ActiveDeviceChanged += OnActiveDeviceChanged;
         UpdateActiveDeviceState(DeviceManager.ActiveDevice);
-        foreach (var device in PairedDevices) device.PropertyChanged += OnDevicePropertyChanged;
+        ObserveDevices();
         PairedDevices.CollectionChanged += OnPairedDevicesChanged;
     }
 
     private void OnPairedDevicesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.OldItems is not null)
-            foreach (PairedDevice device in e.OldItems) device.PropertyChanged -= OnDevicePropertyChanged;
-        if (e.NewItems is not null)
-            foreach (PairedDevice device in e.NewItems) device.PropertyChanged += OnDevicePropertyChanged;
+        ObserveDevices();
         UpdateActiveDeviceState(DeviceManager.ActiveDevice);
+        RefreshConnectionSummary();
+    }
+
+    private void ObserveDevices()
+    {
+        // Reset/Clear events have no OldItems; reconcile subscriptions as well as additions.
+        foreach (var device in observedDevices.Where(d => !PairedDevices.Contains(d)).ToList())
+        {
+            device.PropertyChanged -= OnDevicePropertyChanged;
+            observedDevices.Remove(device);
+        }
+        foreach (var device in PairedDevices)
+            if (observedDevices.Add(device)) device.PropertyChanged += OnDevicePropertyChanged;
+    }
+
+    private void RefreshConnectionSummary()
+    {
         OnPropertyChanged(nameof(ConnectionSummary));
+        OnPropertyChanged(nameof(CompactConnectionSummary));
     }
 
     private void OnDevicePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(PairedDevice.IsConnected))
-            OnPropertyChanged(nameof(ConnectionSummary));
+        if (e.PropertyName == nameof(PairedDevice.IsConnected)) RefreshConnectionSummary();
     }
 
     [RelayCommand]

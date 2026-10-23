@@ -99,6 +99,7 @@ public partial class PairedDevice : BaseRemoteDevice
                 OnPropertyChanged(nameof(ConnectionActionText));
                 OnPropertyChanged(nameof(IsConnected));
                 OnPropertyChanged(nameof(IsConnecting));
+                OnPropertyChanged(nameof(IsDisconnected));
                 OnPropertyChanged(nameof(IsForcedDisconnect));
                 OnPropertyChanged(nameof(IsConnectedOrConnecting));
                 RefreshAddressConnectionStates();
@@ -126,8 +127,8 @@ public partial class PairedDevice : BaseRemoteDevice
             return ConnectionStatus switch
             {
                 Connected => "Connected.Text".GetLocalizedResource(),
-                Connecting => "Connecting",
-                Disconnected => "Disconnected.Text".GetLocalizedResource(),
+                Connecting => "DeviceConnecting".GetLocalizedResource(),
+                Disconnected => "DeviceOffline".GetLocalizedResource(),
                 _ => "Unknown"
             };
         }
