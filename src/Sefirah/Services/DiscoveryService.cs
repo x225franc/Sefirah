@@ -36,11 +36,11 @@ public class DiscoveryService(
             localDevice = await deviceManager.GetLocalDeviceAsync();
             var localAddresses = NetworkHelper.GetAllValidAddresses();
 
-            var name = await UserInformation.GetCurrentUserNameAsync();
             BroadcastMessage = new UdpBroadcast
             {
                 DeviceId = localDevice.DeviceId,
-                DeviceName = name,
+                DeviceName = localDevice.DeviceName,
+                DeviceType = "windows",
                 Port = NetworkService.ServerPort
             };
 
@@ -174,6 +174,7 @@ public class DiscoveryService(
 
             if (broadcast.DeviceId == localDevice?.DeviceId || address is null) return;
 
+            if (!DesktopPeerPolicy.ShouldInitiate(localDevice!.DeviceId, broadcast.DeviceId, broadcast.DeviceType)) return;
             sessionManager.Connect(broadcast.DeviceId, address.ToString(), broadcast.Port);
         }
         catch (Exception ex)

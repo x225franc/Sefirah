@@ -25,7 +25,7 @@ public class NetworkService(
 
     private static readonly IEnumerable<int> PORT_RANGE = Enumerable.Range(5150, 20); // 5150 to 5169
 
-    private readonly ConcurrentDictionary<Guid, StringBuilder> connectionBuffers = [];
+    private readonly ConcurrentDictionary<Guid, Sefirah.Utils.WireMessageBuffer> connectionBuffers = [];
     private readonly ConcurrentDictionary<Guid, DeviceAuth> deviceAuths = [];
     private readonly HashSet<string> connectingDeviceIds = [];
     private readonly ConcurrentDictionary<Guid, TaskCompletionSource<bool>> handshakeCompletion = [];
@@ -89,7 +89,7 @@ public class NetworkService(
 
             await SendDeviceInfo(device);
 
-            if (device.DeviceSettings.AdbAutoConnect)
+            if (device.IsPhone && device.DeviceSettings.AdbAutoConnect)
             {
                 await adbService.TryConnectTcp(device.Address, device.Model);
             }
@@ -102,7 +102,7 @@ public class NetworkService(
         {
             var localDevice = await deviceManager.GetLocalDeviceAsync();
             var avatar = await UserInformation.GetCurrentUserAvatarAsync();
-            device.SendMessage(new DeviceInfo { DeviceName = localDevice.DeviceName, Avatar = avatar });
+            device.SendMessage(new DeviceInfo { DeviceName = localDevice.DeviceName, Avatar = avatar, DeviceType = "windows" });
         }
         catch (Exception ex)
         {
@@ -164,24 +164,11 @@ public class NetworkService(
     /// <summary>
     /// Extracts complete newline-delimited messages from the buffer, deserializes them, removes from buffer, returns list.
     /// </summary>
-    private static List<SocketMessage> GetMessagesFromBuffer(StringBuilder sb, ILogger logger)
+    private static List<SocketMessage> GetMessagesFromBuffer(Sefirah.Utils.WireMessageBuffer sb, ILogger logger)
     {
         List<SocketMessage> messages = [];
-        while (sb.Length > 0)
+        foreach (var messageString in sb.ReadMessages())
         {
-            int newlineIndex = -1;
-            for (int i = 0; i < sb.Length; i++)
-            {
-                if (sb[i] == '\n')
-                {
-                    newlineIndex = i; break;
-                }
-            }
-            if (newlineIndex < 0) break;
-
-            var messageString = sb.ToString(0, newlineIndex).Trim();
-            sb.Remove(0, newlineIndex + 1);
-
             if (string.IsNullOrEmpty(messageString)) continue;
 
             logger.Debug($"Processing message: {(messageString.Length > 100 ? string.Concat(messageString.AsSpan(0, 100), "...") : messageString)}");
@@ -204,6 +191,8 @@ public class NetworkService(
             DeviceId = localDevice.DeviceId,
             DeviceName = localDevice.DeviceName,
             PublicKey = SslHelper.DevicePublicKeyString,
+            DeviceType = "windows",
+            Port = ServerPort,
             Model = Environment.MachineName
         };
 
@@ -214,7 +203,7 @@ public class NetworkService(
     public void OnConnected(ServerSession session) 
     {
         logger.Debug($"New session connected: {session.Id}");
-        connectionBuffers[session.Id] = new StringBuilder();
+        connectionBuffers[session.Id] = new Sefirah.Utils.WireMessageBuffer();
     }
 
     public void OnDisconnected(ServerSession session)
@@ -234,8 +223,8 @@ public class NetworkService(
     {
         try
         {
-            var sb = connectionBuffers.GetOrAdd(session.Id, _ => new StringBuilder());
-            sb.Append(Encoding.UTF8.GetString(buffer, (int)offset, (int)size));
+            var sb = connectionBuffers.GetOrAdd(session.Id, _ => new Sefirah.Utils.WireMessageBuffer());
+            sb.Append(buffer, (int)offset, (int)size);
 
             foreach (var socketMessage in GetMessagesFromBuffer(sb, logger))
             {
@@ -377,6 +366,22 @@ public class NetworkService(
             }
 
 
+            var localDevice = await deviceManager.GetLocalDeviceAsync();
+            if (authMessage.DeviceId == localDevice.DeviceId)
+                throw new InvalidOperationException("Cannot connect to this device itself");
+
+            SendAuthenticationMessage(m => SendMessage(session, m));
+            // Desktop peers use the lower stable device ID as the TCP initiator.
+            // This also handles mDNS and manual connection attempts in the opposite direction.
+            if (DesktopPeerPolicy.IsDesktop(authMessage.DeviceType) &&
+                DesktopPeerPolicy.ShouldInitiate(localDevice.DeviceId, authMessage.DeviceId, authMessage.DeviceType))
+            {
+                if (authMessage.Port > 0)
+                    Connect(authMessage.DeviceId, address, authMessage.Port);
+                DisconnectSession(session);
+                return;
+            }
+
             var pairedDevice = PairedDevices.FirstOrDefault(d => d.Id == authMessage.DeviceId);
             if (pairedDevice is not null)
             {
@@ -384,6 +389,8 @@ public class NetworkService(
                 {
                     throw new Exception("Certificate verification failed for paired device");
                 }
+                pairedDevice.DeviceType = authMessage.DeviceType ?? pairedDevice.DeviceType;
+                if (authMessage.Port > 0) pairedDevice.Port = authMessage.Port;
                 await AuthenticatePairedDeviceClient(session, pairedDevice, address, cancellationToken);
                 return;
             }
@@ -451,7 +458,9 @@ public class NetworkService(
             Id = authMessage.DeviceId,
             Name = authMessage.DeviceName,
             Model = authMessage.Model,
+            DeviceType = authMessage.DeviceType,
             Address = address,
+            Port = authMessage.Port > 0 ? authMessage.Port : 5150,
             Certificate = certificate,
             VerificationKey = SslHelper.GetVerificationCode(authMessage.PublicKey),
             Session = session
@@ -459,7 +468,6 @@ public class NetworkService(
 
         await App.MainWindow.DispatcherQueue.EnqueueAsync(() => DiscoveredDevices.Add(device));
 
-        SendAuthenticationMessage(m => SendMessage(session, m));
     }
 
     private async void HandlePairRequest(DiscoveredDevice device)
@@ -759,15 +767,16 @@ public class NetworkService(
 
     public void Pair(DiscoveredDevice device)
     {
+        // Set this before sending: a fast desktop peer may respond immediately.
+        device.IsPairing = true;
         device.SendMessage(new PairMessage { Pair = true });
-        App.MainWindow.DispatcherQueue.EnqueueAsync(() => device.IsPairing = true);
     }
 
     #region Client events
     public void OnConnected(Client client)
     {
         logger.Info($"OnConnected for client {client.Id}");
-        connectionBuffers[client.Id] = new StringBuilder();
+        connectionBuffers[client.Id] = new Sefirah.Utils.WireMessageBuffer();
     }
 
     public void OnHandshaked(Client client)
@@ -798,8 +807,8 @@ public class NetworkService(
     {
         try
         {
-            var sb = connectionBuffers.GetOrAdd(client.Id, _ => new StringBuilder());
-            sb.Append(Encoding.UTF8.GetString(buffer, (int)offset, (int)size));
+            var sb = connectionBuffers.GetOrAdd(client.Id, _ => new Sefirah.Utils.WireMessageBuffer());
+            sb.Append(buffer, (int)offset, (int)size);
 
             foreach (var socketMessage in GetMessagesFromBuffer(sb, logger))
             {
@@ -857,9 +866,24 @@ public class NetworkService(
 
             logger.Info($"Received AuthenticationMessage from server at {address}");
 
+            var localDevice = await deviceManager.GetLocalDeviceAsync();
+            if (authMessage.DeviceId == localDevice.DeviceId)
+                throw new InvalidOperationException("Cannot connect to this device itself");
+
+            if (!DesktopPeerPolicy.ShouldInitiate(localDevice.DeviceId, authMessage.DeviceId, authMessage.DeviceType))
+            {
+                DisconnectClient(client);
+                return;
+            }
+
             var pairedDevice = PairedDevices.FirstOrDefault(d => d.Id == authMessage.DeviceId);
             if (pairedDevice is not null)
             {
+                var certificate = SslHelper.GetCertForPublicKey(authMessage.PublicKey);
+                if (certificate is null || !certificate.AsSpan().SequenceEqual(pairedDevice.Certificate))
+                    throw new InvalidOperationException("Certificate verification failed for paired device");
+                pairedDevice.DeviceType = authMessage.DeviceType ?? pairedDevice.DeviceType;
+                if (authMessage.Port > 0) pairedDevice.Port = authMessage.Port;
                 await AuthenticatePairedDeviceServer(client, pairedDevice, address, cancellationToken);
             }
             else
@@ -932,6 +956,7 @@ public class NetworkService(
             Id = authMessage.DeviceId,
             Name = authMessage.DeviceName,
             Model = authMessage.Model,
+            DeviceType = authMessage.DeviceType,
             Address = address,
             Port = port,
             Certificate = certificate,

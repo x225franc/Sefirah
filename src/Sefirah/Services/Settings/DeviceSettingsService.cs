@@ -19,7 +19,7 @@ internal sealed partial class DeviceSettingsService(string deviceId) : BaseDevic
 
     public bool ClipboardIncludeImages
     {
-        get => Get(false);
+        get => Get(true);
         set => Set(value);
     }
 

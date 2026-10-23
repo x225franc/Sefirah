@@ -69,6 +69,8 @@ public partial class DeviceManager(
             var entity = await repository.GetPairedDevice(device.Id);
             if (entity is null) return;
 
+            entity.DeviceType = device.DeviceType;
+            entity.Port = device.Port;
             entity.Addresses = [.. device.Addresses];
             repository.AddOrUpdateRemoteDevice(entity);
         }
@@ -86,6 +88,8 @@ public partial class DeviceManager(
             Name = device.Name,
             LastConnected = DateTime.Now,
             Model = device.Model,
+            DeviceType = device.DeviceType,
+            Port = device.Port > 0 ? device.Port : 5150,
             Certificate = device.Certificate,
             WallpaperBytes = null,
             Addresses = [new AddressEntry { Address = device.Address, IsEnabled = true }],
@@ -101,11 +105,10 @@ public partial class DeviceManager(
             var localDevice =  repository.GetLocalDevice();
             if (localDevice is null)
             {
-                var name = await UserInformation.GetCurrentUserNameAsync();
                 localDevice = new LocalDeviceEntity
                 {
                     DeviceId = Guid.NewGuid().ToString(),
-                    DeviceName = name,
+                    DeviceName = Environment.MachineName,
                 };
 
                 repository.AddOrUpdateLocalDevice(localDevice);
@@ -143,6 +146,7 @@ public partial class DeviceManager(
     {
         var existingDevice = await repository.GetPairedDevice(device.Id);
         existingDevice.Name = deviceInfo.DeviceName;
+        existingDevice.DeviceType = deviceInfo.DeviceType ?? existingDevice.DeviceType;
         existingDevice.PhoneNumbers = deviceInfo.PhoneNumbers;
         if (!string.IsNullOrEmpty(deviceInfo.Avatar))
         {
@@ -152,6 +156,7 @@ public partial class DeviceManager(
         await App.MainWindow.DispatcherQueue.EnqueueAsync(async () =>
         {
             device.Name = deviceInfo.DeviceName;
+            device.DeviceType = existingDevice.DeviceType;
             device.PhoneNumbers = deviceInfo.PhoneNumbers;
             device.Wallpaper = await existingDevice.WallpaperBytes.ToBitmapAsync();
         });

@@ -12,6 +12,10 @@ public class PairedDeviceEntity
 
     public string Name { get; set; } = string.Empty;
 
+    public int Port { get; set; } = 5150;
+
+    public string? DeviceType { get; set; }
+
     public string Model { get; set; } = string.Empty;
 
     public byte[] Certificate { get; set; } = [];
@@ -54,6 +58,8 @@ public class PairedDeviceEntity
         {
             Name = Name,
             Model = Model,
+            DeviceType = DeviceType,
+            Port = Port > 0 ? Port : 5150,
             Certificate = Certificate,
             Addresses = [with(Addresses)],
             PhoneNumbers = PhoneNumbers,

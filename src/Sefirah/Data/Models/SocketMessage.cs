@@ -55,6 +55,10 @@ public class RequestWorkerLaunch : SocketMessage
 
 public class Authentication : SocketMessage
 {
+    public int Port { get; set; }
+
+    public string? DeviceType { get; set; }
+
     public required string DeviceId { get; set; }
 
     public required string DeviceName { get; set; }
@@ -89,6 +93,8 @@ public class BluetoothPairingResult : SocketMessage
 
 public class UdpBroadcast : SocketMessage
 {
+    public string? DeviceType { get; set; }
+
     public int Port { get; set; }
 
     public required string DeviceId { get; set; }
@@ -98,6 +104,8 @@ public class UdpBroadcast : SocketMessage
 
 public class DeviceInfo : SocketMessage
 {
+    public string? DeviceType { get; set; }
+
     public required string DeviceName { get; set; }
 
     public string? Avatar { get; set; } = null;

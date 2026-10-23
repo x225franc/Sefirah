@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/Sefirah/Utils/WireMessageBuffer.cs" Link="WireMessageBuffer.cs" />
+    <Compile Include="../../src/Sefirah/Utils/DesktopPeerPolicy.cs" Link="DesktopPeerPolicy.cs" />
+    <Compile Include="../../src/Sefirah/Utils/Serialization/JsonMessageSerializer.cs" Link="JsonMessageSerializer.cs" />
+    <Compile Include="../../src/Sefirah/Data/Models/SocketMessage.cs" Link="SocketMessage.cs" />
+    <Compile Include="../../src/Sefirah/Data/Models/FileMetadata.cs" Link="FileMetadata.cs" />
+    <Compile Include="../../src/Sefirah/Data/Models/ServerInfo.cs" Link="ServerInfo.cs" />
+    <Compile Include="../../src/Sefirah/Data/Models/Messages/PhoneNumber.cs" Link="PhoneNumber.cs" />
+    <Compile Include="../../src/Sefirah/Data/Enums/MessageTypes.cs" Link="MessageTypes.cs" />
+  </ItemGroup>
+</Project>

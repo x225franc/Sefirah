@@ -173,7 +173,10 @@ public static class SslHelper
             if (cert is null) return false;
             using var c = new X509Certificate2(cert);
             var raw = c.RawData;
-            return raw.Length == expectedPeerCert.Length && raw.AsSpan().SequenceEqual(expectedPeerCert);
+            if (raw.Length != expectedPeerCert.Length || !raw.AsSpan().SequenceEqual(expectedPeerCert))
+                return false;
+            // Authentication also binds the announced public key to this pinned TLS certificate.
+            return StashCertAndAccept(sender, cert, chain, errors);
         }
     }
 

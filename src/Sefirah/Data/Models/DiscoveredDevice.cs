@@ -18,6 +18,7 @@ public partial class DiscoveredDevice : BaseRemoteDevice
         {
             Name = Name,
             Model = Model,
+            DeviceType = DeviceType,
             Certificate = Certificate,
             Session = Session,
             Client = Client,

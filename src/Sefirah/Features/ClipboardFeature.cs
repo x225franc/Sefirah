@@ -19,7 +19,7 @@ public class ClipboardFeature(
     private bool isMonitoring = false;
     private const int DirectTransferThreshold = 2 * 1024 * 1024; // 2MB threshold
 
-    private static readonly Dictionary<string, string> SupportedImageFileTypes = new()
+    private static readonly Dictionary<string, string> SupportedImageFileTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         ["jpeg"] = "image/jpeg",
         ["jpg"] = "image/jpeg",
@@ -31,9 +31,10 @@ public class ClipboardFeature(
         ["tif"] = "image/tiff",
         ["heic"] = "image/heic",
         ["heif"] = "image/heic",
-        [".apng"] = "image/apng"
+        ["apng"] = "image/apng"
     };
     
+    private const string RemoteClipboardFormat = "Sefirah.RemoteClipboard";
     private bool isInternalUpdate; // To track if the clipboard change came from the remote device
 
     public Task InitializeAsync()
@@ -50,20 +51,19 @@ public class ClipboardFeature(
 
     private void OnConnectionStatusChanged(object? sender, PairedDevice device)
     {
-        var devicesWithClipboardSync = deviceManager.PairedDevices
-            .Where(device => device.IsConnected && device.DeviceSettings.ClipboardSend);
-
         dispatcher.EnqueueAsync(() =>
         {
             try
             {
+                var devicesWithClipboardSync = deviceManager.PairedDevices
+                    .Where(d => d.IsConnected);
                 if (!devicesWithClipboardSync.Any() && isMonitoring)
                 {
                     Clipboard.ContentChanged -= OnClipboardContentChanged;
                     logger.Info("Clipboard monitoring stopped");
                     isMonitoring = false;
                 }
-                else if (!isMonitoring)
+                else if (devicesWithClipboardSync.Any() && !isMonitoring)
                 {
                     Clipboard.ContentChanged += OnClipboardContentChanged;
                     logger.Info("Clipboard monitoring started");
@@ -122,6 +122,7 @@ public class ClipboardFeature(
     private async Task SendClipboardContentAsync(List<PairedDevice> devices)
     {
         var dataPackageView = Clipboard.GetContent();
+        if (dataPackageView.Contains(RemoteClipboardFormat)) return;
         if (dataPackageView.Contains(StandardDataFormats.Text))
         {
             await TryHandleTextContent(dataPackageView, devices);
@@ -156,7 +157,10 @@ public class ClipboardFeature(
                 if ((long)(await file.GetBasicPropertiesAsync()).Size > DirectTransferThreshold)
                     await HandleLargeImageTransfer(file, fileExtension, mimeType, devicesWithImageSync);
                 else
-                    await HandleSmallImageTransfer(await file.OpenStreamForReadAsync(), mimeType, devicesWithImageSync);
+                {
+                    using var imageStream = await file.OpenStreamForReadAsync();
+                    await HandleSmallImageTransfer(imageStream, mimeType, devicesWithImageSync);
+                }
             }
             return;
         }
@@ -166,9 +170,9 @@ public class ClipboardFeature(
             var bitmapRef = await dataPackageView.GetBitmapAsync();
             using var bitmap = await bitmapRef.OpenReadAsync();
 #if WINDOWS
-            var stream = new MemoryStream();
+            using var stream = new MemoryStream();
             var decoder = await BitmapDecoder.CreateAsync(bitmap);
-            var softwareBitmap = await decoder.GetSoftwareBitmapAsync();
+            using var softwareBitmap = await decoder.GetSoftwareBitmapAsync();
             var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream.AsRandomAccessStream());
             encoder.SetSoftwareBitmap(softwareBitmap);
             await encoder.FlushAsync();
@@ -215,8 +219,10 @@ public class ClipboardFeature(
 
     public async Task SetContentAsync(ClipboardInfo clipboard, PairedDevice sourceDevice)
     {
+        if (!sourceDevice.DeviceSettings.ClipboardReceive) return;
         if (clipboard.ClipboardType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
         {
+            if (!sourceDevice.DeviceSettings.ClipboardIncludeImages) return;
             var file = await CreateClipboardImageFileAsync(clipboard.Content, clipboard.ClipboardType);
             if (file is null)
             {
@@ -241,10 +247,16 @@ public class ClipboardFeature(
             {
                 isInternalUpdate = true;
                 var dataPackage = new DataPackage();
+                dataPackage.SetData(RemoteClipboardFormat, sourceDevice.Id);
 
                 switch (content)
                 {
                     case StorageFile file:
+                        if (file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!sourceDevice.DeviceSettings.ClipboardIncludeImages) return;
+                            dataPackage.SetBitmap(Windows.Storage.Streams.RandomAccessStreamReference.CreateFromFile(file));
+                        }
                         // Set package family name for proper file handling
                         dataPackage.Properties.PackageFamilyName = Package.Current.Id.FamilyName;
                         // Pass false as second parameter to indicate the app isn't taking ownership of the files

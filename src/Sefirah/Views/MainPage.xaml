@@ -313,7 +313,7 @@
                                                     Grid.Column="0"
                                                     Margin="0,0,12,0"
                                                     VerticalAlignment="Center"
-                                                    Glyph="&#xE8EA;" />
+                                                    Glyph="{x:Bind DeviceIcon, Mode=OneWay}" />
                                                 <StackPanel Grid.Column="1" Spacing="4">
                                                     <TextBlock FontWeight="SemiBold" Text="{x:Bind Name}" />
                                                     <TextBlock

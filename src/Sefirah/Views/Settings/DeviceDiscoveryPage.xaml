@@ -87,7 +87,7 @@
                     <DataTemplate x:DataType="models:DiscoveredDevice">
                         <wuc:SettingsCard Description="{x:Bind VerificationKey}" Header="{x:Bind Name}">
                             <wuc:SettingsCard.HeaderIcon>
-                                <FontIcon Glyph="&#xE8EA;" />
+                                <FontIcon Glyph="{x:Bind DeviceIcon, Mode=OneWay}" />
                             </wuc:SettingsCard.HeaderIcon>
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button

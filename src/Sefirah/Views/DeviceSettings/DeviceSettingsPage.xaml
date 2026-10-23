@@ -37,41 +37,8 @@
                         </Grid.ColumnDefinitions>
 
                         <!--  Device Icon (same as DevicesPage)  -->
-                        <Grid
-                            Grid.Column="0"
-                            Width="50"
-                            Height="88"
-                            Margin="0,0,20,0">
-                            <Rectangle
-                                Opacity="0.5"
-                                RadiusX="6"
-                                RadiusY="6"
-                                Stroke="Black"
-                                StrokeThickness="2">
-                                <Rectangle.Fill>
-                                    <SolidColorBrush Opacity="0.1" Color="{ThemeResource SystemBaseLowColor}" />
-                                </Rectangle.Fill>
-                            </Rectangle>
-                            <Rectangle
-                                Margin="2"
-                                RadiusX="6"
-                                RadiusY="6"
-                                Stroke="Black"
-                                StrokeThickness="1" />
-                            <Border Margin="3" CornerRadius="6">
-                                <Border.Background>
-                                    <LinearGradientBrush Opacity="{x:Bind ViewModel.Device.Wallpaper, Converter={StaticResource EmptyObjectToOpacityConverter}, Mode=OneWay}" StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Offset="0" Color="#FF0070FF" />
-                                        <GradientStop Offset="1" Color="#FF2E90FF" />
-                                    </LinearGradientBrush>
-                                </Border.Background>
-                                <Image
-                                    x:Name="WallpaperImage"
-                                    Source="{x:Bind ViewModel.Device.Wallpaper, Mode=OneWay}"
-                                    Stretch="UniformToFill"
-                                    Visibility="{x:Bind ViewModel.Device.Wallpaper, Converter={StaticResource EmptyObjectToVisibilityConverter}, Mode=OneWay}" />
-                            </Border>
-                        </Grid>
+                        <FontIcon Grid.Column="0" Margin="0,0,20,0" FontSize="48"
+                            Glyph="{x:Bind ViewModel.Device.DeviceIcon, Mode=OneWay}" />
 
                         <!--  Device Info  -->
                         <StackPanel Grid.Column="1" Spacing="8">

@@ -27,6 +27,27 @@ public abstract partial class BaseRemoteDevice : ObservableObject
         set => SetProperty(ref model, value);
     }
 
+    private string? deviceType;
+    public string? DeviceType
+    {
+        get => deviceType;
+        set
+        {
+            if (SetProperty(ref deviceType, value))
+            {
+                OnPropertyChanged(nameof(IsDesktop));
+                OnPropertyChanged(nameof(IsPhone));
+                OnPropertyChanged(nameof(DeviceIcon));
+                OnPropertyChanged(nameof(DeviceDescription));
+            }
+        }
+    }
+
+    public bool IsDesktop => Sefirah.Utils.DesktopPeerPolicy.IsDesktop(DeviceType);
+    public bool IsPhone => !IsDesktop;
+    public string DeviceIcon => IsDesktop ? "\uE770" : "\uE8EA";
+    public string DeviceDescription => IsDesktop ? "PC · Windows" : "Android";
+
     public byte[] Certificate { get; set; } = null!;
 
     public ServerSession? Session { get; set; }
@@ -39,8 +60,8 @@ public abstract partial class BaseRemoteDevice : ObservableObject
         {
             var stringMessage = JsonMessageSerializer.Serialize(message);
             var messageBytes = Encoding.UTF8.GetBytes(stringMessage + "\n");
-            Session?.SendAsync(messageBytes);
-            Client?.SendAsync(messageBytes);
+            if (Session is not null) Session.SendAsync(messageBytes);
+            else Client?.SendAsync(messageBytes);
         }
         catch { }
     }
