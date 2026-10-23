@@ -2,12 +2,12 @@
 
 Copier ce dossier complet sur chaque PC (Windows 10 2004 ou plus récent, ou Windows 11, x64).
 Fermer Sefirah avant la mise à jour, puis lancer `Install.ps1` avec PowerShell.
-L'assistant Windows peut demander une élévation pour installer le certificat de signature local `Sefirah.cer`.
+Le MSIX utilise le certificat historique `Sefirah-SigningCert.cer` (empreinte `129CC6F085FB2E35AAB7CB927030257FB15A8F27`). Aucune nouvelle approbation de certificat n'est nécessaire sur les PC où ce certificat est déjà approuvé.
 Si PowerShell bloque le script, ouvrir PowerShell dans ce dossier et exécuter :
 
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1
 
-Le certificat est auto-signé : il faut l'approuver sur chacun de vos PC avant de pouvoir installer le MSIX.
+Sur un nouveau PC uniquement, approuver le certificat historique fourni avant d'installer le MSIX. Sur les PC déjà configurés, un simple `Add-AppxPackage -Path .\Sefirah_3.1.0.2_x64_Debug.msix` permet la mise à jour.
 La clé privée ne fait pas partie de ce dossier et ne doit pas être distribuée.
 
 Sur chaque PC :

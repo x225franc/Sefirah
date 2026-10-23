@@ -1,4 +1,4 @@
-﻿<Project Sdk="Uno.Sdk">
+<Project Sdk="Uno.Sdk">
     <PropertyGroup>
         <TargetFrameworks>net10.0-windows10.0.26100;net10.0-desktop</TargetFrameworks>
 
@@ -59,7 +59,7 @@
     <PropertyGroup Condition="'$(UapAppxPackageBuildMode)' == 'Sideloading'">
         <GenerateTemporaryStoreCertificate>False</GenerateTemporaryStoreCertificate>
         <PackageCertificateKeyFile>Sefirah_TemporaryKey.pfx</PackageCertificateKeyFile>
-        <PackageCertificateThumbprint>15cbc5825d3fe452c20ec20aa3191c836a6e302d</PackageCertificateThumbprint>
+        <PackageCertificateThumbprint>129CC6F085FB2E35AAB7CB927030257FB15A8F27</PackageCertificateThumbprint>
     </PropertyGroup>
 
     <PropertyGroup>
