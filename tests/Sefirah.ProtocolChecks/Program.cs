@@ -9,6 +9,7 @@ using Sefirah.Utils;
 using Sefirah.Utils.Serialization;
 
 static void Check(bool value, string message) { if (!value) throw new Exception(message); }
+await RecoveryChecks.RunAsync();
 var original = "{\"type\":\"ClipboardInfo\",\"content\":\"été 😀 漢字\",\"clipboardType\":\"text/plain\"}";
 var bytes = Encoding.UTF8.GetBytes(original + "\n");
 for (int split = 0; split <= bytes.Length; split++)

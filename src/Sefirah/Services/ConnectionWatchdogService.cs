@@ -26,7 +26,7 @@ public class ConnectionWatchdogService(
     private CancellationTokenSource? cts;
     private bool networkChangeSubscribed;
     private bool powerChangeSubscribed;
-    private readonly SemaphoreSlim recoveryGate = new(1, 1);
+    private readonly CoalescingAsyncWork recoveryWork = new();
     private DateTime lastNetworkChangeHandledUtc = DateTime.MinValue;
 
     private ObservableCollection<PairedDevice> PairedDevices => deviceManager.PairedDevices;
@@ -94,23 +94,29 @@ public class ConnectionWatchdogService(
         _ = RecoverConnectionsAsync("network address changed");
     }
 
-    private async Task RecoverConnectionsAsync(string reason)
+    private Task RecoverConnectionsAsync(string reason)
     {
         var token = cts?.Token;
-        if (token is null || !await recoveryGate.WaitAsync(0)) return;
+        return token is null ? Task.CompletedTask : recoveryWork.RunAsync(() => RecoverConnectionsCoreAsync(reason, token.Value));
+    }
+
+    private async Task RecoverConnectionsCoreAsync(string reason, CancellationToken token)
+    {
         try
         {
+            token.ThrowIfCancellationRequested();
             logger.Info($"Recovering connections after {reason}");
             await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
             {
+                if (token.IsCancellationRequested) return;
                 foreach (var device in PairedDevices.Where(d => d.IsConnected).ToList())
                     sessionManager.DisconnectDevice(device, false);
             });
             // Allow close callbacks and the resumed network adapter to settle.
-            await Task.Delay(TimeSpan.FromSeconds(2), token.Value);
+            await Task.Delay(TimeSpan.FromSeconds(2), token);
             await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
             {
-                if (token.Value.IsCancellationRequested) return;
+                if (token.IsCancellationRequested) return;
                 sessionManager.ResetConnectionRetries();
                 discoveryService.BroadcastNow();
                 RetryDisconnectedDevices();
@@ -121,18 +127,23 @@ public class ConnectionWatchdogService(
         {
             logger.Error("Error recovering connections", ex);
         }
-        finally { recoveryGate.Release(); }
     }
 
-    private async Task PrepareForPowerTransitionAsync()
+    private Task PrepareForPowerTransitionAsync()
     {
         var token = cts?.Token;
-        if (token is null || !await recoveryGate.WaitAsync(0)) return;
+        return token is null ? Task.CompletedTask : recoveryWork.RunAsync(() => PrepareForPowerTransitionCoreAsync(token.Value));
+    }
+
+    private async Task PrepareForPowerTransitionCoreAsync(CancellationToken token)
+    {
         try
         {
+            token.ThrowIfCancellationRequested();
             logger.Info("Closing device connections before sleep or hibernation");
             await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
             {
+                if (token.IsCancellationRequested) return;
                 foreach (var device in PairedDevices.Where(d => d.IsConnectedOrConnecting).ToList())
                     sessionManager.DisconnectDevice(device, false);
             });
@@ -142,7 +153,6 @@ public class ConnectionWatchdogService(
         {
             logger.Error("Error preparing connections for power transition", ex);
         }
-        finally { recoveryGate.Release(); }
     }
 
     private async Task RunAsync(CancellationToken token)
