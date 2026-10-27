@@ -22,6 +22,7 @@ Sur chaque PC :
 8. Copier un texte ou une capture d'écran sur l'un des appareils, puis coller sur un autre appareil associé et connecté.
 
 « Voir les détails » choisit seulement l'appareil dont les détails sont affichés. Les autres appareils restent connectés et continuent de partager le presse-papiers selon leurs réglages. Une reconnexion ne change plus l'appareil affiché. Le bouton « Déconnecter » agit uniquement sur l'appareil concerné.
+Avant une veille ou une hibernation de Windows, Sefirah ferme ses sessions réseau. Au réveil, il réannonce le PC et relance les connexions automatiquement afin d'éviter de conserver une socket TCP/TLS devenue invalide.
 
 Les PC annoncent désormais leur type Windows. Les anciens PC déjà associés seront identifiés correctement après leur mise à jour et leur reconnexion.
 Android conserve le protocole existant ; les restrictions d'accès au presse-papiers propres à Android restent applicables.

@@ -55,6 +55,9 @@ public class RequestWorkerLaunch : SocketMessage
 
 public class Authentication : SocketMessage
 {
+    // Only an explicit Connect action may lift the peer's manual disconnection.
+    public bool UserInitiated { get; set; }
+
     public int Port { get; set; }
 
     public string? DeviceType { get; set; }

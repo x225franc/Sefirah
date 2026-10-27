@@ -24,6 +24,11 @@ public interface ISessionManager
     /// <summary>Connects to a paired device at a specific address. Cancels any in-progress attempt first.</summary>
     void Connect(PairedDevice device, string address);
 
+    /// <summary>Automatic retry; respects manual pauses, single-flight and backoff.</summary>
+    void RetryConnection(PairedDevice device);
+
+    void ResetConnectionRetries();
+
     void Pair(DiscoveredDevice device);
 
     /// <summary>

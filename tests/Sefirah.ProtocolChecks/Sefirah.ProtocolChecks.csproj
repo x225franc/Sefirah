@@ -3,6 +3,9 @@
   <ItemGroup>
     <Compile Include="../../src/Sefirah/Utils/WireMessageBuffer.cs" Link="WireMessageBuffer.cs" />
     <Compile Include="../../src/Sefirah/Utils/DesktopPeerPolicy.cs" Link="DesktopPeerPolicy.cs" />
+    <Compile Include="../../src/Sefirah/Utils/ConnectionOwnershipPolicy.cs" Link="ConnectionOwnershipPolicy.cs" />
+    <Compile Include="../../src/Sefirah/Utils/ConnectionLiveness.cs" Link="ConnectionLiveness.cs" />
+    <Compile Include="../../src/Sefirah/Utils/ConnectionRetrySchedule.cs" Link="ConnectionRetrySchedule.cs" />
     <Compile Include="../../src/Sefirah/Utils/Serialization/JsonMessageSerializer.cs" Link="JsonMessageSerializer.cs" />
     <Compile Include="../../src/Sefirah/Data/Models/SocketMessage.cs" Link="SocketMessage.cs" />
     <Compile Include="../../src/Sefirah/Data/Models/FileMetadata.cs" Link="FileMetadata.cs" />

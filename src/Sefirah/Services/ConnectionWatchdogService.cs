@@ -1,5 +1,8 @@
 using System.Net.NetworkInformation;
+using CommunityToolkit.WinUI;
+using Microsoft.Win32;
 using Sefirah.Data.Models;
+using Sefirah.Utils;
 using Ping = Sefirah.Data.Models.Ping;
 
 namespace Sefirah.Services;
@@ -13,12 +16,8 @@ public class ConnectionWatchdogService(
     ISessionManager sessionManager,
     IDiscoveryService discoveryService) : IConnectionWatchdogService
 {
-    // Comfortably under typical router NAT/conntrack idle timeouts for TCP (commonly 60s+),
-    // and frequent enough that a dead socket doesn't sit unnoticed for long.
+    // One local timer; network probes are sent only after an idle period.
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(20);
-
-    // Two missed heartbeats' worth of silence before we give up on a connection.
-    private static readonly TimeSpan StaleThreshold = TimeSpan.FromSeconds(50);
 
     // Windows tends to fire NetworkAddressChanged several times in quick succession during
     // a single network transition; collapse those into one drop+retry pass.
@@ -26,6 +25,8 @@ public class ConnectionWatchdogService(
 
     private CancellationTokenSource? cts;
     private bool networkChangeSubscribed;
+    private bool powerChangeSubscribed;
+    private readonly SemaphoreSlim recoveryGate = new(1, 1);
     private DateTime lastNetworkChangeHandledUtc = DateTime.MinValue;
 
     private ObservableCollection<PairedDevice> PairedDevices => deviceManager.PairedDevices;
@@ -41,6 +42,11 @@ public class ConnectionWatchdogService(
         {
             NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
             networkChangeSubscribed = true;
+            if (OperatingSystem.IsWindows())
+            {
+                SystemEvents.PowerModeChanged += OnPowerModeChanged;
+                powerChangeSubscribed = true;
+            }
         }
         catch (Exception ex)
         {
@@ -50,6 +56,11 @@ public class ConnectionWatchdogService(
 
     public void Stop()
     {
+        if (powerChangeSubscribed && OperatingSystem.IsWindows())
+        {
+            SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+            powerChangeSubscribed = false;
+        }
         if (networkChangeSubscribed)
         {
             NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
@@ -61,30 +72,77 @@ public class ConnectionWatchdogService(
         cts = null;
     }
 
+    private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
+    {
+        switch (e.Mode)
+        {
+            case PowerModes.Suspend:
+                _ = PrepareForPowerTransitionAsync();
+                break;
+            case PowerModes.Resume:
+                _ = RecoverConnectionsAsync("resume from sleep");
+                break;
+        }
+    }
+
     private void OnNetworkAddressChanged(object? sender, EventArgs e)
     {
         var now = DateTime.UtcNow;
         if (now - lastNetworkChangeHandledUtc < NetworkChangeDebounce) return;
         lastNetworkChangeHandledUtc = now;
 
-        logger.Info("Local network address changed; dropping stale connections and retrying");
+        _ = RecoverConnectionsAsync("network address changed");
+    }
+
+    private async Task RecoverConnectionsAsync(string reason)
+    {
+        var token = cts?.Token;
+        if (token is null || !await recoveryGate.WaitAsync(0)) return;
         try
         {
-            // A socket bound to an address/interface that just disappeared (Wi-Fi switch,
-            // adapter reset, VPN toggle) rarely reports an error by itself - drop it so the
-            // retry pass below can establish a fresh one.
-            foreach (var device in PairedDevices.Where(d => d.IsConnected))
+            logger.Info($"Recovering connections after {reason}");
+            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
             {
-                sessionManager.DisconnectDevice(device);
-            }
-
-            discoveryService.BroadcastNow();
-            RetryDisconnectedDevices();
+                foreach (var device in PairedDevices.Where(d => d.IsConnected).ToList())
+                    sessionManager.DisconnectDevice(device, false);
+            });
+            // Allow close callbacks and the resumed network adapter to settle.
+            await Task.Delay(TimeSpan.FromSeconds(2), token.Value);
+            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+            {
+                if (token.Value.IsCancellationRequested) return;
+                sessionManager.ResetConnectionRetries();
+                discoveryService.BroadcastNow();
+                RetryDisconnectedDevices();
+            });
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            logger.Error("Error handling network address change", ex);
+            logger.Error("Error recovering connections", ex);
         }
+        finally { recoveryGate.Release(); }
+    }
+
+    private async Task PrepareForPowerTransitionAsync()
+    {
+        var token = cts?.Token;
+        if (token is null || !await recoveryGate.WaitAsync(0)) return;
+        try
+        {
+            logger.Info("Closing device connections before sleep or hibernation");
+            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+            {
+                foreach (var device in PairedDevices.Where(d => d.IsConnectedOrConnecting).ToList())
+                    sessionManager.DisconnectDevice(device, false);
+            });
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            logger.Error("Error preparing connections for power transition", ex);
+        }
+        finally { recoveryGate.Release(); }
     }
 
     private async Task RunAsync(CancellationToken token)
@@ -94,7 +152,7 @@ public class ConnectionWatchdogService(
             using var timer = new PeriodicTimer(TickInterval);
             while (await timer.WaitForNextTickAsync(token))
             {
-                Tick();
+                await App.MainWindow.DispatcherQueue.EnqueueAsync(Tick);
             }
         }
         catch (OperationCanceledException)
@@ -118,17 +176,18 @@ public class ConnectionWatchdogService(
 
     private void SendHeartbeatsAndPruneStale()
     {
-        var now = DateTime.UtcNow;
-        foreach (var device in PairedDevices.Where(d => d.IsConnected))
+        var now = Environment.TickCount64;
+        foreach (var device in PairedDevices.Where(d => d.IsConnected).ToList())
         {
-            if (device.LastActivityUtc != default && now - device.LastActivityUtc > StaleThreshold)
+            var action = device.Liveness.Check(now);
+            if (action == LivenessAction.Disconnect)
             {
-                logger.Warn($"No traffic from {device.Name} for {(now - device.LastActivityUtc).TotalSeconds:F0}s, treating connection as dead");
+                logger.Warn($"No response to the idle probe from {device.Name}, treating connection as dead");
                 sessionManager.DisconnectDevice(device);
                 continue;
             }
 
-            device.SendMessage(new Ping());
+            if (action == LivenessAction.Ping) device.SendMessage(new Ping());
         }
     }
 
@@ -137,7 +196,7 @@ public class ConnectionWatchdogService(
     {
         foreach (var device in PairedDevices.Where(d => !d.IsConnectedOrConnecting && !d.IsForcedDisconnect))
         {
-            sessionManager.Connect(device);
+            sessionManager.RetryConnection(device);
         }
     }
 }

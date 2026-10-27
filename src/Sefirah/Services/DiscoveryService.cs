@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using CommunityToolkit.WinUI;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Sefirah.Data.AppDatabase.Models;
 using Sefirah.Data.EventArguments;
@@ -24,7 +25,7 @@ public class DiscoveryService(
     private readonly int port = 5149;
     private List<IPEndPoint> broadcastEndpoints = [];
     private const int DiscoveryPort = 5149;
-    private static readonly TimeSpan RebroadcastInterval = TimeSpan.FromSeconds(25);
+    private static readonly TimeSpan RebroadcastInterval = TimeSpan.FromSeconds(60);
     private CancellationTokenSource? rebroadcastCts;
 
     public UdpBroadcast? BroadcastMessage { get; private set; }
@@ -135,7 +136,11 @@ public class DiscoveryService(
                 using var timer = new PeriodicTimer(RebroadcastInterval);
                 while (await timer.WaitForNextTickAsync(token))
                 {
-                    BroadcastNow();
+                    await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+                    {
+                        if (deviceManager.PairedDevices.Any(d => !d.IsConnectedOrConnecting && !d.IsForcedDisconnect))
+                            BroadcastNow();
+                    });
                 }
             }
             catch (OperationCanceledException)

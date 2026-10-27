@@ -30,6 +30,53 @@ batch.Append(tail, 0, tail.Length);
 Check(batch.ReadMessages().Single() == "partial end", "Tail retained");
 var legacy = JsonMessageSerializer.DeserializeMessage("{\"type\":\"Authentication\",\"deviceId\":\"phone\",\"deviceName\":\"Android\",\"publicKey\":\"key\",\"model\":\"Pixel\"}") as Authentication;
 Check(legacy is { DeviceType: null, Port: 0 }, "Legacy Android authentication");
+Check(legacy is { UserInitiated: false }, "Legacy auth cannot override manual pause");
+var explicitAuth = new Authentication { DeviceId = "phone", DeviceName = "Android", Model = "Pixel", PublicKey = "key", UserInitiated = true };
+Check(JsonMessageSerializer.Serialize(explicitAuth).Contains("\"userInitiated\":true"), "Explicit connect flag uses Android wire casing");
+Check(JsonMessageSerializer.DeserializeMessage(JsonMessageSerializer.Serialize(explicitAuth)) is Authentication { UserInitiated: true }, "Explicit connection flag survives serialization");
+
+// A discovery storm must neither replace a healthy transport nor undo a user's pause.
+Check(!ConnectionOwnershipPolicy.CanAdopt("a", "b", true, true, false, false, false, false), "Automatic incoming auth cannot undo pause");
+Check(ConnectionOwnershipPolicy.CanAdopt("a", "b", true, true, true, false, false, false), "Explicit peer connection can resume a paused link");
+Check(!ConnectionOwnershipPolicy.CanAdopt("a", "b", true, false, false, true, false, false), "Duplicate incoming connection is rejected");
+Check(!ConnectionOwnershipPolicy.CanAdopt("a", "b", false, false, false, false, true, false), "Duplicate outgoing connection is rejected");
+foreach (var local in new[] { "a", "z" })
+{
+    var remote = local == "a" ? "z" : "a";
+    var acceptsIncoming = ConnectionOwnershipPolicy.CanAdopt(local, remote, true, false, false, false, false, true);
+    Check(acceptsIncoming == (local == "z"), "Simultaneous opens agree on lower-ID initiator");
+    Check(ConnectionOwnershipPolicy.CanAdopt(local, remote, true, false, false, false, false, false), "Either direction works in isolation");
+    Check(ConnectionOwnershipPolicy.CanAdopt(local, remote, false, false, false, true, false, true) == (local == "a"), "Only preferred direction replaces opposite socket");
+}
+
+var health = new ConnectionLiveness();
+health.Received(1_000);
+Check(health.Check(60_999) == LivenessAction.None, "No idle probe before 60 seconds");
+Check(health.Check(61_000) == LivenessAction.Ping, "Exactly one probe after idle");
+Check(health.Check(61_001) == LivenessAction.None && health.Check(120_999) == LivenessAction.None, "Repeated wakes cannot duplicate a pending probe");
+Check(health.Check(121_000) == LivenessAction.Disconnect, "Unanswered probe expires after grace");
+health.Received(121_001);
+Check(health.Check(121_001) == LivenessAction.None, "Any valid traffic clears pending timeout");
+health.Received(500_000);
+Check(health.Check(9_000_000) == LivenessAction.Ping && health.Check(9_000_001) == LivenessAction.None, "Resume starts a fresh probe rather than expiring idle age");
+
+var retries = new ConnectionRetrySchedule();
+Check(retries.IsDue("phone", 0), "First retry is immediate");
+long retryAt = 0;
+foreach (var delay in new[] { 15_000, 30_000, 60_000, 120_000, 240_000, 300_000, 300_000 })
+{
+    retries.Failed("phone", retryAt);
+    Check(!retries.IsDue("phone", retryAt + delay - 1), "Discovery respects failure backoff");
+    Check(retries.IsDue("phone", retryAt + delay), "Retry becomes eligible exactly at deadline");
+    Check(retries.IsDue("other", retryAt), "Each device retries independently");
+    retryAt += delay;
+}
+retries.Reset("phone");
+Check(retries.IsDue("phone", 0), "Manual reconnect and success clear backoff");
+retries.Failed("phone", 0);
+retries.ResetAll();
+Check(retries.IsDue("phone", 0), "Network recovery clears obsolete retry deadlines");
+Console.WriteLine("PASS: manual pause protocol, simultaneous-open arbitration, idle-only liveness, bounded probes and shared retry backoff.");
 var auth = new Authentication { DeviceId = "pc", DeviceName = "PC", Model = "Windows", PublicKey = "key", DeviceType = "windows", Port = 5162 };
 Check(JsonMessageSerializer.DeserializeMessage(JsonMessageSerializer.Serialize(auth)) is Authentication { DeviceType: "windows", Port: 5162 }, "Desktop authentication roundtrip");
 foreach (var a in new[] { "a", "b", "c" })

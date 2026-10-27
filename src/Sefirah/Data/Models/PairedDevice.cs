@@ -147,6 +147,7 @@ public partial class PairedDevice : BaseRemoteDevice
     /// look "Connected" but have gone silent.
     /// </summary>
     public DateTime LastActivityUtc { get; set; }
+    public Sefirah.Utils.ConnectionLiveness Liveness { get; } = new();
 
     private BatteryState? batteryStatus;
     public BatteryState? BatteryStatus
