@@ -27,6 +27,7 @@ public class DiscoveryService(
     private const int DiscoveryPort = 5149;
     private static readonly TimeSpan RebroadcastInterval = TimeSpan.FromSeconds(60);
     private CancellationTokenSource? rebroadcastCts;
+    private readonly DiscoveryReplyGate replyGate = new();
 
     public UdpBroadcast? BroadcastMessage { get; private set; }
 
@@ -40,7 +41,6 @@ public class DiscoveryService(
                 return;
             }
             localDevice = await deviceManager.GetLocalDeviceAsync();
-            var localAddresses = NetworkHelper.GetAllValidAddresses();
 
             BroadcastMessage = new UdpBroadcast
             {
@@ -54,35 +54,7 @@ public class DiscoveryService(
             mdnsService.StartDiscovery();
             mdnsService.DiscoveredMdnsService += OnDiscoveredMdnsService;
 
-            broadcastEndpoints = [.. localAddresses.Select(ipInfo =>
-            {
-                var network = new Data.Models.IPNetwork(ipInfo.Address, ipInfo.SubnetMask);
-                var broadcastAddress = network.BroadcastAddress;
-
-                // Fallback to gateway if broadcast is limited
-                return broadcastAddress.Equals(IPAddress.Broadcast) && ipInfo.Gateway is not null
-                    ? new IPEndPoint(ipInfo.Gateway, DiscoveryPort)
-                    : new IPEndPoint(broadcastAddress, DiscoveryPort);
-
-            }).Distinct()];
-
-            // Always include default broadcast as fallback
-            broadcastEndpoints.Add(new IPEndPoint(IPAddress.Parse(DEFAULT_BROADCAST), DiscoveryPort));
-
-            var addresses = deviceManager.GetRemoteDeviceAddresses();
-            broadcastEndpoints.AddRange(addresses
-                .Select(address => IPAddress.TryParse(address, out var parsed) ? new IPEndPoint(parsed, DiscoveryPort) : null)
-                .Where(endpoint => endpoint is not null)!);
-
-            // GetRemoteDeviceAddresses() returns every address ever seen for every paired device,
-            // with no cap or de-dup - months of switching networks/hotspots can pile up dozens of
-            // entries, several of which end up equal to each other or to the subnet/gateway
-            // broadcasts above. Sending the same announcement to the same destination dozens of
-            // times per broadcast made the receiving side see a burst of near-simultaneous "new
-            // connection" triggers instead of one, which is what was causing the reconnect storms.
-            broadcastEndpoints = [.. broadcastEndpoints.Distinct()];
-
-            logger.Info($"Active broadcast endpoints: {string.Join(", ", broadcastEndpoints)}");
+            RefreshBroadcastEndpoints();
 
             udpClient = new MulticastClient("0.0.0.0", port, this, logger)
             {
@@ -124,8 +96,29 @@ public class DiscoveryService(
     {
         if (BroadcastMessage is not null)
         {
+            // DHCP/Wi-Fi may have changed since startup; don't keep sending to the old subnet.
+            RefreshBroadcastEndpoints();
             BroadcastDeviceInfoAsync(BroadcastMessage);
         }
+    }
+
+    private void RefreshBroadcastEndpoints()
+    {
+        var endpoints = NetworkHelper.GetAllValidAddresses().Select(ipInfo =>
+        {
+            var network = new Data.Models.IPNetwork(ipInfo.Address, ipInfo.SubnetMask);
+            var broadcast = network.BroadcastAddress;
+            return new IPEndPoint(broadcast.Equals(IPAddress.Broadcast) && ipInfo.Gateway is not null
+                ? ipInfo.Gateway : broadcast, DiscoveryPort);
+        }).ToList();
+        endpoints.Add(new IPEndPoint(IPAddress.Parse(DEFAULT_BROADCAST), DiscoveryPort));
+        endpoints.AddRange(deviceManager.GetRemoteDeviceAddresses()
+            .Select(address => IPAddress.TryParse(address, out var parsed) ? new IPEndPoint(parsed, DiscoveryPort) : null)
+            .OfType<IPEndPoint>());
+        var updated = endpoints.Distinct().ToList();
+        if (!broadcastEndpoints.SequenceEqual(updated))
+            logger.Info($"Active broadcast endpoints: {string.Join(", ", updated)}");
+        broadcastEndpoints = updated;
     }
 
     private void StartPeriodicRebroadcast()
@@ -182,7 +175,16 @@ public class DiscoveryService(
             var address = ((IPEndPoint)endpoint).Address;
             if (JsonMessageSerializer.DeserializeMessage(message) is not UdpBroadcast broadcast) return;
 
-            if (broadcast.DeviceId == localDevice?.DeviceId || address is null) return;
+            if (string.IsNullOrWhiteSpace(broadcast.DeviceId) || broadcast.Port is < 1 or > 65535 ||
+                broadcast.DeviceId == localDevice?.DeviceId || address is null || localDevice is null) return;
+
+            if (BroadcastMessage is not null && udpClient is not null &&
+                replyGate.TryReply(localDevice.DeviceId, broadcast.DeviceId, broadcast.DeviceType,
+                    address.ToString(), Environment.TickCount64))
+            {
+                var reply = Encoding.UTF8.GetBytes(JsonMessageSerializer.Serialize(BroadcastMessage));
+                udpClient.Socket.SendTo(reply, new IPEndPoint(address, DiscoveryPort));
+            }
 
             if (!DesktopPeerPolicy.ShouldInitiate(localDevice!.DeviceId, broadcast.DeviceId, broadcast.DeviceType)) return;
             sessionManager.Connect(broadcast.DeviceId, address.ToString(), broadcast.Port);

@@ -15,6 +15,7 @@ public sealed partial class DeviceDiscoveryPage : Page
     {
         InitializeComponent();
         SetupBreadcrumb();
+        Loaded += (_, _) => DiscoveryService.BroadcastNow();
     }
 
     private void SetupBreadcrumb()

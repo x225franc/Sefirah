@@ -11,6 +11,24 @@ using Sefirah.Utils.Serialization;
 static void Check(bool value, string message) { if (!value) throw new Exception(message); }
 await RecoveryChecks.RunAsync();
 await TlsIdentityChecks.RunAsync();
+// Either startup order must converge with only the lower-ID desktop initiating TCP.
+foreach (var laterPeer in new[] { "a", "z" })
+{
+    var existingPeer = laterPeer == "a" ? "z" : "a";
+    var replies = new DiscoveryReplyGate();
+    var connects = DesktopPeerPolicy.ShouldInitiate(existingPeer, laterPeer, "windows") ? 1 : 0;
+    if (replies.TryReply(existingPeer, laterPeer, "windows", "192.168.8.188", 0))
+        connects += DesktopPeerPolicy.ShouldInitiate(laterPeer, existingPeer, "windows") ? 1 : 0;
+    Check(connects == 1, "A later-starting desktop is discovered with one initiator");
+    Check(!replies.TryReply(existingPeer, laterPeer, "windows", "192.168.8.188", 1), "Repeated announcements cannot form a reply storm");
+}
+var replyGate = new DiscoveryReplyGate();
+Check(!replyGate.TryReply("z", "z", "windows", "192.168.8.1", 0), "Never reply to ourselves");
+Check(!replyGate.TryReply("z", "a", null, "192.168.8.1", 0), "Legacy phone discovery is unchanged");
+Check(replyGate.TryReply("z", "a", "windows", "192.168.8.1", 0), "First desktop announcement gets a unicast answer");
+Check(replyGate.TryReply("z", "a", "windows", "192.168.8.2", 1), "A changed LAN address is immediately discoverable");
+Check(replyGate.TryReply("z", "a", "windows", "192.168.8.1", 30_000), "Lost answers can be retried after bounded cooldown");
+Console.WriteLine("PASS: both desktop startup orders, one initiator, bounded unicast discovery replies and address changes.");
 var original = "{\"type\":\"ClipboardInfo\",\"content\":\"été 😀 漢字\",\"clipboardType\":\"text/plain\"}";
 var bytes = Encoding.UTF8.GetBytes(original + "\n");
 for (int split = 0; split <= bytes.Length; split++)
