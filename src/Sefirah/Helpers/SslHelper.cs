@@ -12,6 +12,7 @@ namespace Sefirah.Helpers;
 /// </summary>
 public static class SslHelper
 {
+    private static readonly Sefirah.Utils.CertificateIdentityStore IdentityStore = new();
     private static readonly TimeSpan StashTtl = TimeSpan.FromSeconds(30);
 
     private static readonly ConcurrentDictionary<string, ConcurrentQueue<(byte[] Cert, long Ticks)>> CertByPublicKey = new();
@@ -136,20 +137,7 @@ public static class SslHelper
     public static X509Certificate2 GetOrCreateCertificate()
     {
         string certPath = Path.Combine(ApplicationData.Current.LocalFolder.Path, CertificateFileName);
-
-        if (File.Exists(certPath))
-        {
-            try
-            {
-                return X509CertificateLoader.LoadPkcs12FromFile(certPath, null);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to load certificate: {ex.Message}");
-            }
-        }
-
-        return CreateECDSACertificate();
+        return IdentityStore.GetOrCreate(certPath, CreateECDSACertificate);
     }
 
     public static SslContext GetSslContext()

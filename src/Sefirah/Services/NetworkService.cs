@@ -53,13 +53,20 @@ public class NetworkService(
     {
         if (isRunning) return;
 
-        ConnectionStatusChanged += ConnectionStatusChangedEvent;
+        NetCoreServer.SslContext sslContext;
+        try { sslContext = SslHelper.GetSslContext(); }
+        catch (Exception ex)
+        {
+            ServerPort = 0;
+            logger.Error("Cannot initialize the TLS identity; the connection server was not started", ex);
+            return;
+        }
 
         foreach (int port in PORT_RANGE)
         {
             try
             {
-                server = new Server(SslHelper.GetSslContext(), IPAddress.IPv6Any, port, this)
+                server = new Server(sslContext, IPAddress.IPv6Any, port, this)
                 {
                     OptionReuseAddress = true,
                     OptionDualMode = true,
@@ -69,6 +76,7 @@ public class NetworkService(
                 {
                     ServerPort = port;
                     isRunning = true;
+                    ConnectionStatusChanged += ConnectionStatusChangedEvent;
                     logger.Info($"Server started on port: {port}");
                     return;
                 }
@@ -635,7 +643,14 @@ public class NetworkService(
 
     #region Client
 
-    public async void Connect(string deviceId, string address, int port)
+    public void Connect(string deviceId, string address, int port)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId) || string.IsNullOrWhiteSpace(address) || port is < 1 or > 65535) return;
+        _ = AsyncOperationGuard.RunAsync(() => ConnectDiscoveredAsync(deviceId, address, port),
+            error => logger.Warn($"Discovered connection to {address}:{port} failed", error));
+    }
+
+    private async Task ConnectDiscoveredAsync(string deviceId, string address, int port)
     {
         var existingDevice = PairedDevices.FirstOrDefault(d => d.Id == deviceId);
         if (existingDevice is not null)

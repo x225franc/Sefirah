@@ -34,6 +34,11 @@ public class DiscoveryService(
     {
         try
         {
+            if (NetworkService.ServerPort is < 1 or > 65535)
+            {
+                logger.Warn("Discovery is unavailable because the connection server did not start");
+                return;
+            }
             localDevice = await deviceManager.GetLocalDeviceAsync();
             var localAddresses = NetworkHelper.GetAllValidAddresses();
 
